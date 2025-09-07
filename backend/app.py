@@ -5,6 +5,8 @@ import tempfile
 import json
 import threading
 import time
+import zipfile
+import io
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
@@ -412,6 +414,125 @@ def get_file_details(pdf_name):
         })
     except Exception as e:
         return jsonify({'success': False, 'message': f'获取文件详情失败: {str(e)}'})
+
+@app.route('/api/files/<pdf_name>/download', methods=['GET'])
+def download_pdf_zip(pdf_name):
+    """下载PDF文件的所有分析结果为ZIP文件（仅包含解释文档）"""
+    try:
+        # 检查文件是否存在
+        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        
+        if not os.path.exists(explanations_dir):
+            return jsonify({'success': False, 'message': '没有找到分析结果'})
+        
+        # 检查是否有分析结果文件
+        explanation_files = [f for f in os.listdir(explanations_dir) if f.endswith('.md')]
+        if not explanation_files:
+            return jsonify({'success': False, 'message': '没有找到分析结果文件'})
+        
+        # 创建内存中的ZIP文件
+        zip_buffer = io.BytesIO()
+        
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            # 只添加分析结果文件
+            for filename in explanation_files:
+                file_path = os.path.join(explanations_dir, filename)
+                # 在ZIP中使用相对路径
+                arcname = f"{pdf_name}_explanations/{filename}"
+                zip_file.write(file_path, arcname)
+            
+            # 添加README文件
+            readme_content = f"""# {pdf_name} 分析结果
+
+## 文件说明
+- `{pdf_name}_explanations/` - 包含所有页面的Markdown格式分析结果
+
+## 分析结果文件
+"""
+            
+            # 添加分析结果文件列表
+            for filename in sorted(explanation_files):
+                readme_content += f"- {filename}\n"
+            
+            readme_content += f"""
+## 生成时间
+{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+
+## 说明
+此ZIP文件包含了PDF文档"{pdf_name}"的所有页面分析结果。
+每个Markdown文件对应PDF的一页内容，包含AI对该页面的详细分析。
+
+## 文件命名规则
+- page_001.md - 第1页分析结果
+- page_002.md - 第2页分析结果
+- 以此类推...
+
+## 使用建议
+- 可以使用任何Markdown编辑器或查看器打开这些文件
+- 推荐使用Typora、Mark Text或VS Code等编辑器获得更好的阅读体验
+- 文件内容包含完整的分析结果，可以直接复制使用
+"""
+            
+            zip_file.writestr(f"{pdf_name}_README.txt", readme_content)
+        
+        zip_buffer.seek(0)
+        
+        return send_file(
+            zip_buffer,
+            as_attachment=True,
+            download_name=f"{pdf_name}_explanations.zip",
+            mimetype='application/zip'
+        )
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'生成ZIP文件失败: {str(e)}'})
+
+@app.route('/api/files/<pdf_name>/preview', methods=['GET'])
+def get_pdf_preview_data(pdf_name):
+    """获取PDF文件的预览数据"""
+    try:
+        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        
+        if not os.path.exists(explanations_dir):
+            return jsonify({'success': False, 'message': '没有找到分析结果'})
+        
+        # 获取所有分析结果文件
+        explanations = []
+        if os.path.exists(explanations_dir):
+            for filename in sorted(os.listdir(explanations_dir)):
+                if filename.endswith('.md'):
+                    file_path = os.path.join(explanations_dir, filename)
+                    page_number = int(filename.split('_')[1].split('.')[0])
+                    
+                    # 读取分析内容
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content = f.read()
+                    except Exception as e:
+                        content = f"读取文件失败: {str(e)}"
+                    
+                    explanations.append({
+                        'filename': filename,
+                        'path': file_path.replace('\\', '/'),
+                        'page_number': page_number,
+                        'content': content
+                    })
+        
+        # 按页码排序
+        explanations.sort(key=lambda x: x['page_number'])
+        
+        if not explanations:
+            return jsonify({'success': False, 'message': '没有找到分析结果文件'})
+        
+        return jsonify({
+            'success': True,
+            'pdf_name': pdf_name,
+            'explanations': explanations,
+            'total_pages': len(explanations)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'获取预览数据失败: {str(e)}'})
 
 @app.route('/api/files/<pdf_name>', methods=['DELETE'])
 def delete_file(pdf_name):

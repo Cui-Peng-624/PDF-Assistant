@@ -715,6 +715,9 @@ class PDFAnalyzer {
                                 <button class="btn btn-outline-primary btn-sm" onclick="app.viewFileDetails('${file.pdf_name}')">
                                     <i class="fas fa-eye me-1"></i>查看
                                 </button>
+                                <button class="btn btn-outline-info btn-sm" onclick="app.previewFile('${file.pdf_name}')">
+                                    <i class="fas fa-search me-1"></i>预览
+                                </button>
                                 <button class="btn btn-outline-success btn-sm" onclick="app.downloadAllFiles('${file.pdf_name}')">
                                     <i class="fas fa-download me-1"></i>下载
                                 </button>
@@ -843,8 +846,25 @@ class PDFAnalyzer {
 
     async downloadAllFiles(pdfName) {
         try {
-            // 这里可以实现下载所有文件的功能
-            this.showAlert('批量下载功能开发中...', 'info');
+            this.showAlert('正在生成ZIP文件，请稍候...', 'info');
+            
+            const response = await fetch(`${this.apiBaseUrl}/files/${pdfName}/download`);
+            
+            if (response.ok) {
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${pdfName}_explanations.zip`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+                this.showAlert('ZIP文件下载成功！', 'success');
+            } else {
+                const errorData = await response.json();
+                this.showAlert('下载失败：' + (errorData.message || '未知错误'), 'danger');
+            }
         } catch (error) {
             this.showAlert('下载失败：' + error.message, 'danger');
         }
@@ -853,6 +873,25 @@ class PDFAnalyzer {
     async refreshFileList() {
         await this.loadFileList();
         this.showAlert('文件列表已刷新', 'success');
+    }
+
+    async previewFile(pdfName) {
+        try {
+            this.showAlert('正在加载预览数据...', 'info');
+            
+            const response = await fetch(`${this.apiBaseUrl}/files/${pdfName}/preview`);
+            const data = await response.json();
+            
+            if (data.success) {
+                // 打开预览页面
+                const previewUrl = `preview.html?pdf=${encodeURIComponent(pdfName)}`;
+                window.open(previewUrl, '_blank');
+            } else {
+                this.showAlert('加载预览数据失败：' + data.message, 'danger');
+            }
+        } catch (error) {
+            this.showAlert('加载预览数据失败：' + error.message, 'danger');
+        }
     }
 
     async deleteFile(pdfName) {

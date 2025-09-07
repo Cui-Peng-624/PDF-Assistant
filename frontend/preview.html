@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF预览 - PDF智能分析助手</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --success-color: #28a745;
+            --warning-color: #ffc107;
+            --danger-color: #dc3545;
+            --info-color: #17a2b8;
+            --light-color: #f8f9fa;
+            --dark-color: #343a40;
+        }
+
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .main-container {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            margin: 1rem auto;
+            padding: 2rem;
+            min-height: calc(100vh - 2rem);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e9ecef;
+        }
+
+        .header h1 {
+            background: linear-gradient(45deg, var(--primary-color), var(--secondary-color));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .preview-container {
+            display: flex;
+            justify-content: center;
+            min-height: 600px;
+        }
+
+        .explanation-panel {
+            width: 100%;
+            max-width: 1000px;
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .explanation-content {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border: 1px solid #e9ecef;
+            line-height: 1.8;
+            font-size: 16px;
+        }
+
+        .page-navigation {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .page-info {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+
+        .nav-buttons {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-nav {
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+
+
+
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .back-button {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1000;
+        }
+
+        .download-button {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        @media (max-width: 768px) {
+            .explanation-panel {
+                padding: 1rem;
+            }
+            
+            .explanation-content {
+                padding: 1rem;
+                font-size: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row justify-content-center">
+            <div class="col-12">
+                <div class="main-container">
+                    <!-- 返回按钮 -->
+                    <button class="btn btn-outline-secondary back-button" onclick="window.close()">
+                        <i class="fas fa-arrow-left me-2"></i>返回
+                    </button>
+
+                    <!-- 下载按钮 -->
+                    <button class="btn btn-primary download-button" id="downloadBtn" onclick="downloadZip()">
+                        <i class="fas fa-download me-2"></i>下载ZIP
+                    </button>
+
+                    <!-- 头部 -->
+                    <div class="header">
+                        <h1><i class="fas fa-eye me-3"></i>PDF预览</h1>
+                        <p class="text-muted" id="pdfTitle">正在加载...</p>
+                    </div>
+
+                    <!-- 预览内容 -->
+                    <div id="previewContent">
+                        <!-- 页面导航 -->
+                        <div class="page-navigation">
+                            <div class="page-info">
+                                <i class="fas fa-file-pdf me-2"></i>
+                                <span id="currentPageInfo">第 1 页，共 1 页</span>
+                            </div>
+                            <div class="nav-buttons">
+                                <button class="btn btn-outline-primary btn-nav" id="prevBtn" onclick="preview.previousPage()">
+                                    <i class="fas fa-chevron-left me-1"></i>上一页
+                                </button>
+                                <button class="btn btn-outline-primary btn-nav" id="nextBtn" onclick="preview.nextPage()">
+                                    下一页<i class="fas fa-chevron-right ms-1"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 预览容器 -->
+                        <div class="preview-container">
+                            <!-- 分析结果面板 -->
+                            <div class="explanation-panel">
+                                <h5 class="mb-3">
+                                    <i class="fas fa-file-alt me-2"></i>分析结果
+                                </h5>
+                                <div class="explanation-content" id="explanationContent">
+                                    <div class="text-muted text-center py-4">
+                                        <i class="fas fa-spinner fa-spin me-2"></i>加载分析结果中...
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/4.3.0/marked.min.js"></script>
+    <script>
+        class PDFPreview {
+            constructor() {
+                this.apiBaseUrl = 'http://localhost:5000/api';
+                this.currentPage = 1;
+                this.totalPages = 0;
+                this.pdfName = '';
+                this.explanations = [];
+                
+                this.init();
+            }
+
+            init() {
+                // 从URL参数获取PDF名称
+                const urlParams = new URLSearchParams(window.location.search);
+                this.pdfName = urlParams.get('pdf');
+                
+                if (!this.pdfName) {
+                    this.showError('未指定PDF文件');
+                    return;
+                }
+
+                this.loadPreviewData();
+            }
+
+            async loadPreviewData() {
+                try {
+                    const response = await fetch(`${this.apiBaseUrl}/files/${this.pdfName}/preview`);
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        this.explanations = data.explanations;
+                        this.totalPages = data.total_pages;
+                        
+                        document.getElementById('pdfTitle').textContent = this.pdfName;
+                        this.updatePage(1);
+                    } else {
+                        // 如果加载失败，显示空状态
+                        this.showEmptyState();
+                    }
+                } catch (error) {
+                    // 如果网络错误，显示空状态
+                    this.showEmptyState();
+                }
+            }
+
+            showEmptyState() {
+                document.getElementById('pdfTitle').textContent = this.pdfName;
+                document.getElementById('currentPageInfo').textContent = '第 0 页，共 0 页';
+                document.getElementById('explanationContent').innerHTML = `
+                    <div class="text-muted text-center py-4">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        暂无分析结果
+                    </div>
+                `;
+            }
+
+            updatePage(pageNumber) {
+                if (pageNumber < 1 || pageNumber > this.totalPages) {
+                    return;
+                }
+
+                this.currentPage = pageNumber;
+                this.updatePageInfo();
+                this.updateExplanation();
+                this.updateNavigationButtons();
+            }
+
+            updatePageInfo() {
+                document.getElementById('currentPageInfo').textContent = 
+                    `第 ${this.currentPage} 页，共 ${this.totalPages} 页`;
+            }
+
+            updateExplanation() {
+                const explanationElement = document.getElementById('explanationContent');
+                const explanation = this.explanations.find(exp => exp.page_number === this.currentPage);
+                
+                if (explanation) {
+                    explanationElement.innerHTML = marked.parse(explanation.content);
+                    explanationElement.classList.add('fade-in');
+                } else {
+                    explanationElement.innerHTML = `
+                        <div class="text-muted text-center py-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            第${this.currentPage}页没有分析结果
+                        </div>
+                    `;
+                }
+            }
+
+            updateNavigationButtons() {
+                const prevBtn = document.getElementById('prevBtn');
+                const nextBtn = document.getElementById('nextBtn');
+                
+                prevBtn.disabled = this.currentPage <= 1;
+                nextBtn.disabled = this.currentPage >= this.totalPages;
+            }
+
+            previousPage() {
+                if (this.currentPage > 1) {
+                    this.updatePage(this.currentPage - 1);
+                }
+            }
+
+            nextPage() {
+                if (this.currentPage < this.totalPages) {
+                    this.updatePage(this.currentPage + 1);
+                }
+            }
+        }
+
+        // 下载ZIP文件
+        async function downloadZip() {
+            try {
+                const response = await fetch(`http://localhost:5000/api/files/${preview.pdfName}/download`);
+                
+                if (response.ok) {
+                    const blob = await response.blob();
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `${preview.pdfName}_explanations.zip`;
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                } else {
+                    alert('下载失败');
+                }
+            } catch (error) {
+                alert('下载失败：' + error.message);
+            }
+        }
+
+        // 键盘导航
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft') {
+                preview.previousPage();
+            } else if (e.key === 'ArrowRight') {
+                preview.nextPage();
+            }
+        });
+
+        // 初始化预览
+        const preview = new PDFPreview();
+    </script>
+</body>
+</html>
+
