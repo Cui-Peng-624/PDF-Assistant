@@ -1,6 +1,4 @@
 __pycache__/
 .env
 backend/config.json
-backend/files/explanations/
-backend/files/images/
-backend/files/uploads/
+backend/files/
