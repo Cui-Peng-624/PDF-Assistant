@@ -4,6 +4,7 @@ from typing import List, Dict, Callable, Optional
 from pdf2image import convert_from_path
 from openai import OpenAI
 from dotenv import load_dotenv
+import time
 
 # 加载环境变量
 load_dotenv()
@@ -47,42 +48,48 @@ class PDFProcessor:
     
     def analyze_image(self, image_path: str, prompt: str, system_prompt: str, 
                      model: str = "gpt-4.1-2025-04-14") -> str:
-        """使用LLM分析图片"""
+        """使用LLM分析图片，包含重试机制（最多3次，1秒间隔）"""
         if not self.client:
             raise ValueError("客户端未初始化，请先调用create_client")
         
         # 编码图片
         base64_image = self.encode_image(image_path)
         
-        try:
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/png;base64,{base64_image}"},
-                            },
-                        ],
-                    }
-                ],
-                max_tokens=4000,
-                temperature=0.7
-            )
-            
-            return response.choices[0].message.content
-        except Exception as e:
-            raise Exception(f"LLM分析失败: {str(e)}")
+        last_error = None
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {
+                            "role": "system",
+                            "content": system_prompt,
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": prompt,
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:image/png;base64,{base64_image}"},
+                                },
+                            ],
+                        }
+                    ],
+                    max_tokens=4000,
+                    temperature=0.7
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries:
+                    time.sleep(1)
+                else:
+                    raise Exception(f"LLM分析失败(已重试{max_retries}次): {str(e)}")
     
     def process_pdf(self, file_path: str, workspace: dict, prompt: str, 
                    system_prompt: str, api_key: Optional[str] = None, 

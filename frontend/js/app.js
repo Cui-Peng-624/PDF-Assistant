@@ -9,15 +9,43 @@ class PDFAnalyzer {
         this.statusInterval = null;
         this.tasks = new Map();
         this.selectedFile = null; // 存储当前选中的文件
+        this.retryCount = 0;
+        this.maxRetries = 3; // 减少重试次数
+        this.retryDelay = 5000; // 增加到5秒
         
         this.init();
     }
 
     init() {
         this.setupEventListeners();
-        this.loadConfig();
-        this.loadTasks();
-        this.loadFileList();
+        // 延迟加载配置，给后端服务更多启动时间
+        setTimeout(() => {
+            this.loadConfig();
+            this.loadTasks();
+            this.loadFileList();
+        }, 3000); // 延迟3秒
+    }
+
+    async fetchWithRetry(url, options = {}) {
+        for (let i = 0; i < this.maxRetries; i++) {
+            try {
+                const response = await fetch(url, options);
+                if (response.ok) {
+                    this.retryCount = 0; // 重置重试计数
+                    return response;
+                }
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            } catch (error) {
+                console.log(`尝试连接后端服务 (${i + 1}/${this.maxRetries}): ${error.message}`);
+                
+                if (i === this.maxRetries - 1) {
+                    throw error; // 最后一次重试失败，抛出错误
+                }
+                
+                // 等待后重试
+                await new Promise(resolve => setTimeout(resolve, this.retryDelay));
+            }
+        }
     }
 
     setupEventListeners() {
@@ -111,7 +139,7 @@ class PDFAnalyzer {
 
     async loadConfig() {
         try {
-            const response = await fetch(`${this.apiBaseUrl}/config`);
+            const response = await this.fetchWithRetry(`${this.apiBaseUrl}/config`);
             const data = await response.json();
             
             if (data.success && data.config) {
@@ -122,7 +150,7 @@ class PDFAnalyzer {
             }
         } catch (error) {
             console.error('加载配置失败:', error);
-            this.showAlert('加载配置失败', 'warning');
+            // 不显示错误提示，因为后端可能还在启动中
         }
     }
 
@@ -140,7 +168,7 @@ class PDFAnalyzer {
         }
 
         try {
-            const response = await fetch(`${this.apiBaseUrl}/config`, {
+            const response = await this.fetchWithRetry(`${this.apiBaseUrl}/config`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -178,7 +206,7 @@ class PDFAnalyzer {
             await this.saveConfig();
             
             // 测试连接
-            const response = await fetch(`${this.apiBaseUrl}/health`);
+            const response = await this.fetchWithRetry(`${this.apiBaseUrl}/health`);
             const data = await response.json();
             
             console.log('连接测试响应:', data);

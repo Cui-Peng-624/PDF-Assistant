@@ -1,4 +1,8 @@
 __pycache__/
 .env
 backend/config.json
-backend/files/
+
+build/PDF智能分析助手/PDF智能分析助手.pkg
+
+dist/config.json
+dist/PDF智能分析助手.exe

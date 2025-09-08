@@ -23,12 +23,32 @@ except ImportError as e:
 app = Flask(__name__)
 CORS(app)  # 启用CORS支持
 
+"""
+统一的基准路径与数据目录：
+- CODE_DIR: 后端代码目录（可能位于 PyInstaller 的 _MEIPASS）
+- APP_DIR: 应用可写目录
+  - 开发环境：与 CODE_DIR 相同
+  - 打包环境：为可执行文件所在目录（sys.executable 的目录）
+- DATA_DIR: APP_DIR/files（用于持久化存储，避免写入 _MEIPASS）
+"""
+import sys
+
+def _is_frozen():
+    return getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS')
+
+CODE_DIR = os.path.dirname(os.path.abspath(__file__))
+APP_DIR = os.path.dirname(sys.executable) if _is_frozen() else CODE_DIR
+DATA_DIR = os.path.join(APP_DIR, 'files')
+
 # 配置
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max file size
-app.config['UPLOAD_FOLDER'] = 'files/uploads'
+app.config['DATA_DIR'] = DATA_DIR
+app.config['UPLOAD_FOLDER'] = os.path.join(DATA_DIR, 'uploads')
 
 # 确保目录存在
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'images'), exist_ok=True)
+os.makedirs(os.path.join(DATA_DIR, 'explanations'), exist_ok=True)
 
 # 支持的文件类型
 ALLOWED_EXTENSIONS = {'pdf'}
@@ -58,8 +78,9 @@ def save_config():
             config_manager = ConfigManager()
             success = config_manager.save_config(config)
         else:
-            # 简化版本：直接保存到文件
-            with open('config.json', 'w', encoding='utf-8') as f:
+            # 简化版本：直接保存到文件（放在APP_DIR下，保证可写入）
+            config_path = os.path.join(APP_DIR, 'config.json')
+            with open(config_path, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
             success = True
         
@@ -78,9 +99,10 @@ def get_config():
             config_manager = ConfigManager()
             config = config_manager.get_config()
         else:
-            # 简化版本：直接从文件读取
+            # 简化版本：直接从文件读取（APP_DIR下）
             try:
-                with open('config.json', 'r', encoding='utf-8') as f:
+                config_path = os.path.join(APP_DIR, 'config.json')
+                with open(config_path, 'r', encoding='utf-8') as f:
                     config = json.load(f)
             except FileNotFoundError:
                 config = {
@@ -198,8 +220,8 @@ def process_pdf_async(file_id, file_path, prompt_text, config, task_id):
         processing_tasks[file_id]['status_message'] = '开始处理PDF文件...'
         processing_tasks[file_id]['results'] = []
         
-        # 创建文件管理器
-        file_manager = FileManager()
+        # 创建文件管理器（指向可写的 DATA_DIR）
+        file_manager = FileManager(base_dir=app.config['DATA_DIR'])
         
         # 创建工作空间
         workspace = file_manager.create_pdf_workspace(file_id)
@@ -348,7 +370,7 @@ def list_files():
         files = []
         
         # 扫描images目录获取所有PDF文件
-        images_dir = os.path.join('files', 'images')
+        images_dir = os.path.join(app.config['DATA_DIR'], 'images')
         if os.path.exists(images_dir):
             for pdf_name in os.listdir(images_dir):
                 pdf_dir = os.path.join(images_dir, pdf_name)
@@ -357,7 +379,7 @@ def list_files():
                     image_count = len([f for f in os.listdir(pdf_dir) if f.endswith('.png')])
                     
                     # 检查是否有分析结果
-                    explanations_dir = os.path.join('files', 'explanations', pdf_name)
+                    explanations_dir = os.path.join(app.config['DATA_DIR'], 'explanations', pdf_name)
                     explanation_count = 0
                     if os.path.exists(explanations_dir):
                         explanation_count = len([f for f in os.listdir(explanations_dir) if f.endswith('.md')])
@@ -366,8 +388,8 @@ def list_files():
                         'pdf_name': pdf_name,
                         'image_count': image_count,
                         'explanation_count': explanation_count,
-                        'images_dir': pdf_dir,
-                        'explanations_dir': explanations_dir if os.path.exists(explanations_dir) else None
+                        'images_dir': os.path.abspath(pdf_dir),
+                        'explanations_dir': os.path.abspath(explanations_dir) if os.path.exists(explanations_dir) else None
                     })
         
         return jsonify({'success': True, 'files': files})
@@ -378,8 +400,8 @@ def list_files():
 def get_file_details(pdf_name):
     """获取特定PDF文件的详细信息"""
     try:
-        images_dir = os.path.join('files', 'images', pdf_name)
-        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        images_dir = os.path.join(app.config['DATA_DIR'], 'images', pdf_name)
+        explanations_dir = os.path.join(app.config['DATA_DIR'], 'explanations', pdf_name)
         
         if not os.path.exists(images_dir):
             return jsonify({'success': False, 'message': 'PDF文件不存在'})
@@ -391,7 +413,7 @@ def get_file_details(pdf_name):
                 if img_file.endswith('.png'):
                     images.append({
                         'filename': img_file,
-                        'path': os.path.join(images_dir, img_file)
+                        'path': os.path.abspath(os.path.join(images_dir, img_file))
                     })
         
         # 获取分析结果列表
@@ -401,7 +423,7 @@ def get_file_details(pdf_name):
                 if md_file.endswith('.md'):
                     explanations.append({
                         'filename': md_file,
-                        'path': os.path.join(explanations_dir, md_file)
+                        'path': os.path.abspath(os.path.join(explanations_dir, md_file))
                     })
         
         return jsonify({
@@ -420,7 +442,7 @@ def download_pdf_zip(pdf_name):
     """下载PDF文件的所有分析结果为ZIP文件（仅包含解释文档）"""
     try:
         # 检查文件是否存在
-        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        explanations_dir = os.path.join(app.config['DATA_DIR'], 'explanations', pdf_name)
         
         if not os.path.exists(explanations_dir):
             return jsonify({'success': False, 'message': '没有找到分析结果'})
@@ -436,7 +458,7 @@ def download_pdf_zip(pdf_name):
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
             # 只添加分析结果文件
             for filename in explanation_files:
-                file_path = os.path.join(explanations_dir, filename)
+                file_path = os.path.abspath(os.path.join(explanations_dir, filename))
                 # 在ZIP中使用相对路径
                 arcname = f"{pdf_name}_explanations/{filename}"
                 zip_file.write(file_path, arcname)
@@ -491,7 +513,7 @@ def download_pdf_zip(pdf_name):
 def get_pdf_preview_data(pdf_name):
     """获取PDF文件的预览数据"""
     try:
-        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        explanations_dir = os.path.join(app.config['DATA_DIR'], 'explanations', pdf_name)
         
         if not os.path.exists(explanations_dir):
             return jsonify({'success': False, 'message': '没有找到分析结果'})
@@ -501,7 +523,7 @@ def get_pdf_preview_data(pdf_name):
         if os.path.exists(explanations_dir):
             for filename in sorted(os.listdir(explanations_dir)):
                 if filename.endswith('.md'):
-                    file_path = os.path.join(explanations_dir, filename)
+                    file_path = os.path.abspath(os.path.join(explanations_dir, filename))
                     page_number = int(filename.split('_')[1].split('.')[0])
                     
                     # 读取分析内容
@@ -541,7 +563,7 @@ def delete_file(pdf_name):
         import shutil
         
         # 检查文件是否存在
-        images_dir = os.path.join('files', 'images', pdf_name)
+        images_dir = os.path.join(app.config['DATA_DIR'], 'images', pdf_name)
         if not os.path.exists(images_dir):
             return jsonify({'success': False, 'message': 'PDF文件不存在'})
         
@@ -558,14 +580,14 @@ def delete_file(pdf_name):
             deleted_items.append(f'图片目录: {images_dir}')
         
         # 删除分析结果目录
-        explanations_dir = os.path.join('files', 'explanations', pdf_name)
+        explanations_dir = os.path.join(app.config['DATA_DIR'], 'explanations', pdf_name)
         if os.path.exists(explanations_dir):
             shutil.rmtree(explanations_dir)
             deleted_items.append(f'分析结果目录: {explanations_dir}')
         
         
         # 删除原始PDF文件
-        pdf_file = os.path.join('files', 'uploads', f'{pdf_name}.pdf')
+        pdf_file = os.path.join(app.config['DATA_DIR'], 'uploads', f'{pdf_name}.pdf')
         if os.path.exists(pdf_file):
             os.remove(pdf_file)
             deleted_items.append(f'原始PDF文件: {pdf_file}')

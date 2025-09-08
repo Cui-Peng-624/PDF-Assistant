@@ -1,26 +1,10 @@
-# 写在前面
+## 写在前面
 
 我发现对于我们非英语母语者，阅读一份充斥着专业名词的全英文讲义是非常困难的。使用一些翻译软件逐句翻译太慢了，而且时常翻译了后面忘了前面。截图给 AI，让 AI 帮忙解释，需要一页一页的截图，效率太低了，而且回溯起来非常低效。于是，我写一个简单的程序自动化整个过程。但是最近，我发现我的室友也存在着一样的困扰，于是便丰富了前端，制作了这个项目，使得非计算机相关专业的同学也可以享受 AI 时代的便利，进而提高学习效率。
 
-# PDF 智能分析助手
+## PDF 智能分析助手
 
-一个基于 AI 的 PDF 文档智能分析工具，可以将 PDF 文件转换为图片，并使用大语言模型对每页内容进行详细分析，生成结构化的分析报告。
-
-## 📸 项目截图
-
-### 主页面
-
-<div align="center">
-  <img src="images/home_page.png" alt="主页面" width="60%" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-  <p><em>主页面展示：文件上传、API 配置、文件管理等功能</em></p>
-</div>
-
-### 预览界面
-
-<div align="center">
-  <img src="images/preview.png" alt="预览界面" width="60%" style="border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.1);">
-  <p><em>预览界面展示：分析结果浏览、页面导航等功能</em></p>
-</div>
+将 PDF 转为图片并用 AI 分析每页内容的本地工具，支持实时进度、结果预览、ZIP 下载与文件管理。适合快速理解英文讲义、技术文档、报告等。
 
 ## ✨ 主要功能
 
@@ -38,129 +22,36 @@
 - **任务取消** - 可以在处理过程中随时终止任务
 - **文件删除** - 可以删除不需要的 PDF 文件及其所有相关文件
 
-## 🚀 快速开始
+## 使用方法（简明）
 
-### 环境要求
-
-- Python 3.8+
-- Node.js 16+ (可选，用于前端开发)
-
-### 安装步骤
-
-1. **克隆项目**
-
-   ```bash
-   git clone <repository-url>
-   cd ReviewAssistant
-   ```
-
-2. **安装 Python 依赖**
-
-   ```bash
-   cd backend
-   pip install -r requirements.txt
-   ```
-
-3. **安装系统依赖**
-
-   **Windows:**
-
-   - 下载并安装 [Poppler for Windows](https://github.com/oschwartz10612/poppler-windows/releases/)
-
-   **Ubuntu/Debian:**
-
-   ```bash
-   sudo apt-get install poppler-utils
-   ```
-
-   **macOS:**
-
-   ```bash
-   brew install poppler
-   ```
-
-### 启动方式
-
-#### 方式一：一键启动（推荐）
+### 开发运行（用于调试）
 
 ```bash
-# 同时启动前端和后端
-python start_all.py
+# 安装依赖
+cd backend && pip install -r requirements.txt
+# 一键启动（自动启动后端与前端，前端端口动态选择 8080-8085）
+cd .. && python start_all.py
 ```
 
-#### 方式二：分别启动
+### 打包运行（给非技术同学使用）
 
 ```bash
-# 启动后端服务
-python start_backend.py
-
-# 启动前端服务（新终端窗口）
-python start_frontend.py
+# 生成可执行文件与启动器
+python build_exe.py
+# 双击运行 dist/启动PDF智能分析助手.bat
 ```
 
-#### 方式三：Windows 批处理文件
+说明：
 
-```bash
-# 双击运行
-start_all.bat        # 启动所有服务
-start_backend.bat    # 仅启动后端
-start_frontend.bat   # 仅启动前端
-```
+- 前端端口会在 8080-8085 中自动选择一个可用端口；后端固定在 http://localhost:5000。
+- 若浏览器未自动打开，请以控制台打印的“前端地址”为准手动访问。
+- 打包运行时，数据保存在可执行文件同级目录下的 files/（uploads/images/explanations）。
 
-#### 方式四：手动启动
+## 基本步骤
 
-```bash
-# 启动后端
-cd backend
-python run.py
-
-# 启动前端（新终端）
-cd frontend
-python -m http.server 8080
-```
-
-### 访问应用
-
-- **前端地址**: http://localhost:8080
-- **后端 API**: http://localhost:5000
-
-启动成功后，您将看到如上图所示的主页面界面，可以开始使用所有功能。
-
-## 📖 使用指南
-
-### 1. 配置 API
-
-在主页面顶部的 API 配置区域：
-
-- 填写 API Key 和 API Base URL
-- 选择使用的 AI 模型
-- 自定义系统提示词
-- 点击"保存配置"和"测试连接"
-
-### 2. 上传 PDF 文件
-
-在文件上传区域：
-
-- 拖拽 PDF 文件到上传区域
-- 或点击选择文件按钮
-- 支持最大 50MB 的 PDF 文件
-- 可以自定义分析提示词
-
-### 3. 开始分析
-
-- 点击"上传并开始分析"按钮
-- 系统会自动转换 PDF 为图片
-- 使用 AI 模型分析每页内容
-- 实时查看处理进度
-
-### 4. 查看结果
-
-在文件管理区域：
-
-- 查看所有已处理的文件列表
-- 点击"预览"按钮浏览分析结果（如上图预览界面所示）
-- 点击"下载"按钮下载 ZIP 文件
-- 点击"删除"按钮删除不需要的文件
+1. 在页面顶部填写 API Key 和 API Base，点击“保存配置”和“测试连接”。
+2. 上传 PDF（支持拖拽，最大 50MB），点击“上传并开始分析”。
+3. 在“文件管理”中预览、下载（ZIP）或删除结果。
 
 ## 🔧 配置说明
 
@@ -182,33 +73,10 @@ export ZETATECHS_API_KEY="your-api-key"
 export ZETATECHS_API_BASE="https://api.openai.com/v1"
 ```
 
-## 📁 项目结构
+## 依赖要求
 
-```
-ReviewAssistant/
-├── backend/                 # 后端API服务
-│   ├── app.py              # Flask主应用
-│   ├── run.py              # 后端启动脚本
-│   ├── requirements.txt    # Python依赖
-│   ├── config.json         # 配置文件
-│   ├── core/               # 核心模块
-│   │   ├── config_manager.py    # 配置管理
-│   │   ├── file_manager.py      # 文件管理
-│   │   └── pdf_processor.py     # PDF处理
-│   └── files/              # 文件存储
-│       ├── uploads/        # 原始PDF文件
-│       ├── images/         # 转换的图片
-│       └── explanations/   # 分析结果
-├── frontend/               # 前端界面
-│   ├── index.html          # 主页面
-│   ├── preview.html        # 预览页面
-│   └── js/
-│       └── app.js          # 前端逻辑
-├── start_all.py            # 一键启动脚本
-├── start_backend.py        # 后端启动脚本
-├── start_frontend.py       # 前端启动脚本
-└── README.md               # 项目说明
-```
+- Python 3.8+
+- Windows 用户需安装 Poppler：`https://github.com/oschwartz10612/poppler-windows/releases/`
 
 ## 🛠️ 技术栈
 
